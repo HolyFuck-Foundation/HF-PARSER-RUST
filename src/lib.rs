@@ -39,6 +39,8 @@ pub enum Token {
 
     String(String),
 
+    AsmStart,
+
     FuncDecl,
     FuncCall,
 
@@ -129,8 +131,17 @@ fn consume<I: Iterator<Item = char>>(
             ]),
 
             '{' => Either::A(vec![Token::ScopeStart]),
+            '}' => Either::A(vec![Token::ScopeEnd]),
 
             ';' => Either::A(vec![Token::Jawns]),
+
+            '$' => Either::A(vec![
+                Token::AsmStart,
+                Token::String(
+                    consume_string_until(&mut i, ';')
+                        .map_err(|e| TokenizerError { error: e, location })?,
+                ),
+            ]),
 
             c => Either::B(c),
         };
