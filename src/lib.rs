@@ -44,6 +44,8 @@ pub enum Token {
 
     ScopeStart,
     ScopeEnd,
+
+    End,
 }
 
 impl Token {
@@ -118,8 +120,17 @@ fn consume<I: Iterator<Item = char>>(
                         .map_err(|e| TokenizerError { error: e, location })?,
                 ),
             ]),
+            '@' => Either::A(vec![
+                Token::FuncCall,
+                Token::String(
+                    consume_string_until(&mut i, ';')
+                        .map_err(|e| TokenizerError { error: e, location })?,
+                ),
+            ]),
 
             '{' => Either::A(vec![Token::ScopeStart]),
+
+            ';' => Either::A(vec![Token::End]),
 
             c => Either::B(c),
         };
@@ -269,6 +280,29 @@ mod tests {
                     token: Token::ScopeStart,
                     location: (1, 7)
                 },
+            ]
+        )
+    }
+
+    #[test]
+    fn tokenize_func_call() {
+        const INPUT: &str = "@test;";
+        let result = tokenize(INPUT).unwrap();
+        assert_eq!(
+            result,
+            vec![
+                SourceToken {
+                    token: Token::FuncCall,
+                    location: (0, 0)
+                },
+                SourceToken {
+                    token: Token::String(String::from("test")),
+                    location: (0, 1)
+                },
+                SourceToken {
+                    token: Token::End,
+                    location: (0, 5),
+                }
             ]
         )
     }
