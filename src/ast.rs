@@ -5,7 +5,6 @@ use thiserror_no_std::Error;
 
 use crate::token::{SourceToken, Token};
 
-
 #[derive(Debug, PartialEq, Clone)]
 pub enum SyntaxNode {
     Add,
@@ -22,8 +21,8 @@ pub enum SyntaxNode {
 
 #[derive(PartialEq, Clone)]
 pub struct AstNode {
-    node: SyntaxNode,
-    location: (usize, usize),
+    pub node: SyntaxNode,
+    pub location: (usize, usize),
 }
 
 impl core::fmt::Debug for AstNode {
