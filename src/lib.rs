@@ -45,7 +45,7 @@ pub enum Token {
     ScopeStart,
     ScopeEnd,
 
-    End,
+    Jawns,
 }
 
 impl Token {
@@ -130,7 +130,7 @@ fn consume<I: Iterator<Item = char>>(
 
             '{' => Either::A(vec![Token::ScopeStart]),
 
-            ';' => Either::A(vec![Token::End]),
+            ';' => Either::A(vec![Token::Jawns]),
 
             c => Either::B(c),
         };
@@ -300,7 +300,7 @@ mod tests {
                     location: (0, 1)
                 },
                 SourceToken {
-                    token: Token::End,
+                    token: Token::Jawns,
                     location: (0, 5),
                 }
             ]
