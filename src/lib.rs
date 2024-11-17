@@ -1,0 +1,181 @@
+#![no_std]
+
+#[macro_use]
+extern crate alloc;
+
+use alloc::string::String;
+use alloc::vec::Vec;
+
+use core::iter::Peekable;
+
+#[derive(Debug, PartialEq)]
+pub struct SourceToken {
+    pub token: Token,
+    pub location: (usize, usize),
+}
+
+#[derive(Debug, PartialEq)]
+pub enum Token {
+    Add,
+    Subtract,
+    MoveRight,
+    MoveLeft,
+    StackPush,
+    StackPop,
+
+    String(String),
+
+    FuncDecl,
+    FuncCall,
+
+    ScopeStart,
+    ScopeEnd,
+}
+
+impl Token {
+    fn token_length(&self) -> usize {
+        match self {
+            Self::String(s) => s.len(),
+            _ => 1,
+        }
+    }
+}
+
+enum Either<A, B> {
+    A(A),
+    B(B),
+}
+
+fn consume_string_until<I: Iterator<Item = char>>(i: &mut Peekable<I>, stop: char) -> String {
+    let mut string = String::new();
+    while let Some(c) = i.peek() {
+        match *c {
+            c if c == stop => {
+                break;
+            }
+            c => {
+                string.push(c);
+                let _ = i.next(); // Consume the character
+            }
+        }
+    }
+    string
+}
+
+fn consume<I: Iterator<Item = char>>(mut i: Peekable<I>) -> Vec<SourceToken> {
+    let mut result = Vec::new();
+    let mut location = (0, 0);
+
+    while let Some(c) = i.next() {
+        let either = match c {
+            '+' => Either::A(vec![Token::Add]),
+            '-' => Either::A(vec![Token::Subtract]),
+            '>' => Either::A(vec![Token::MoveRight]),
+            '<' => Either::A(vec![Token::MoveLeft]),
+            '.' => Either::A(vec![Token::StackPush]),
+            ',' => Either::A(vec![Token::StackPop]),
+
+            ':' => Either::A(vec![
+                Token::FuncDecl,
+                Token::String(consume_string_until(&mut i, '{')),
+            ]),
+
+            '{' => Either::A(vec![Token::ScopeStart]),
+
+            c => Either::B(c),
+        };
+        match either {
+            Either::A(tokens) => {
+                for token in tokens {
+                    let token_length = token.token_length();
+                    result.push(SourceToken { token, location });
+                    location.1 += token_length;
+                }
+            }
+            Either::B(c) => match c {
+                '\n' => {
+                    location.0 += 1;
+                    location.1 = 0;
+                }
+                _ => location.1 += 1,
+            },
+        }
+    }
+
+    result
+}
+
+pub fn tokenize(code: &str) -> Vec<SourceToken> {
+    consume(code.chars().into_iter().peekable())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn basic_hf() {
+        const INPUT: &str = "++--<>.,";
+        let result = tokenize(INPUT);
+        assert_eq!(
+            result,
+            vec![
+                SourceToken {
+                    token: Token::Add,
+                    location: (0, 0)
+                },
+                SourceToken {
+                    token: Token::Add,
+                    location: (0, 1)
+                },
+                SourceToken {
+                    token: Token::Subtract,
+                    location: (0, 2)
+                },
+                SourceToken {
+                    token: Token::Subtract,
+                    location: (0, 3)
+                },
+                SourceToken {
+                    token: Token::MoveLeft,
+                    location: (0, 4)
+                },
+                SourceToken {
+                    token: Token::MoveRight,
+                    location: (0, 5)
+                },
+                SourceToken {
+                    token: Token::StackPush,
+                    location: (0, 6)
+                },
+                SourceToken {
+                    token: Token::StackPop,
+                    location: (0, 7)
+                },
+            ]
+        );
+    }
+
+    #[test]
+    fn tokenize_func_decl() {
+        const INPUT: &str = ":test{";
+        let result = tokenize(INPUT);
+        assert_eq!(
+            result,
+            vec![
+                SourceToken {
+                    token: Token::FuncDecl,
+                    location: (0, 0)
+                },
+                SourceToken {
+                    token: Token::String(String::from("test")),
+                    location: (0, 1)
+                },
+                SourceToken {
+                    token: Token::ScopeStart,
+                    location: (0, 5)
+                }
+            ]
+        )
+    }
+}
