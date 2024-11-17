@@ -317,4 +317,188 @@ mod tests {
             ]
         )
     }
+
+    #[test]
+    fn tokenize_empty() {
+        const INPUT: &str = "";
+        let result = tokenize(INPUT).unwrap();
+        assert_eq!(result, vec![]);
+    }
+
+    #[test]
+    fn tokenize_empty_function_name() {
+        const INPUT: &str = ":{}";
+        let result = tokenize(INPUT).unwrap();
+        assert_eq!(
+            result,
+            vec![
+                SourceToken {
+                    token: Token::FuncDecl,
+                    location: (0, 0)
+                },
+                SourceToken {
+                    token: Token::String(String::from("")),
+                    location: (0, 1)
+                },
+                SourceToken {
+                    token: Token::ScopeStart,
+                    location: (0, 1)
+                },
+                SourceToken {
+                    token: Token::ScopeEnd,
+                    location: (0, 2)
+                }
+            ]
+        )
+    }
+
+    #[test]
+    fn tokenize_space_function_name() {
+        const INPUT: &str = ": \n\t {";
+        let result = tokenize(INPUT).unwrap();
+        assert_eq!(
+            result,
+            vec![
+                SourceToken {
+                    token: Token::FuncDecl,
+                    location: (0, 0)
+                },
+                SourceToken {
+                    token: Token::String(String::from(" \n\t ")),
+                    location: (0, 1)
+                },
+                SourceToken {
+                    token: Token::ScopeStart,
+                    location: (1, 2)
+                }
+            ]
+        )
+    }
+
+    #[test]
+    fn tokenize_comment_only() {
+        const INPUT: &str = "Hello World";
+        let result = tokenize(INPUT).unwrap();
+        assert_eq!(result, vec![])
+    }
+
+    #[test]
+    fn tokenize_asm() {
+        const INPUT: &str = "$mov eax, 0;";
+        let result = tokenize(INPUT).unwrap();
+        assert_eq!(
+            result,
+            vec![
+                SourceToken {
+                    token: Token::AsmStart,
+                    location: (0, 0)
+                },
+                SourceToken {
+                    token: Token::String(String::from("mov eax, 0")),
+                    location: (0, 1)
+                },
+                SourceToken {
+                    token: Token::Jawns,
+                    location: (0, 11),
+                }
+            ]
+        )
+    }
+
+    #[test]
+    fn tokenize_asm_newline() {
+        const INPUT: &str = "$mov eax,\n 0;";
+        let result = tokenize(INPUT).unwrap();
+        assert_eq!(
+            result,
+            vec![
+                SourceToken {
+                    token: Token::AsmStart,
+                    location: (0, 0)
+                },
+                SourceToken {
+                    token: Token::String(String::from("mov eax,\n 0")),
+                    location: (0, 1)
+                },
+                SourceToken {
+                    token: Token::Jawns,
+                    location: (1, 2),
+                }
+            ]
+        )
+    }
+
+    #[test]
+    fn tokenize_comments() {
+        const INPUT: &str = "+this is a comment+ so is this";
+        let result = tokenize(INPUT).unwrap();
+        assert_eq!(
+            result,
+            vec![
+                SourceToken {
+                    token: Token::Add,
+                    location: (0, 0)
+                },
+                SourceToken {
+                    token: Token::Add,
+                    location: (0, 18)
+                },
+            ]
+        )
+    }
+
+    #[test]
+    fn tokenize_function_inside_function() {
+        const INPUT: &str = ":test{:test2{@test3;}}";
+        let result = tokenize(INPUT).unwrap();
+        assert_eq!(
+            result,
+            vec![
+                SourceToken {
+                    token: Token::FuncDecl,
+                    location: (0, 0)
+                },
+                SourceToken {
+                    token: Token::String(String::from("test")),
+                    location: (0, 1)
+                },
+                SourceToken {
+                    token: Token::ScopeStart,
+                    location: (0, 5)
+                },
+                SourceToken {
+                    token: Token::FuncDecl,
+                    location: (0, 6)
+                },
+                SourceToken {
+                    token: Token::String(String::from("test2")),
+                    location: (0, 7)
+                },
+                SourceToken {
+                    token: Token::ScopeStart,
+                    location: (0, 12)
+                },
+                SourceToken {
+                    token: Token::FuncCall,
+                    location: (0, 13)
+                },
+                SourceToken {
+                    token: Token::String(String::from("test3")),
+                    location: (0, 14)
+                },
+                SourceToken {
+                    token: Token::Jawns,
+                    location: (0, 19),
+                },
+                SourceToken {
+                    token: Token::ScopeEnd,
+                    location: (0, 20)
+                },
+                SourceToken {
+                    token: Token::ScopeEnd,
+                    location: (0, 21)
+                }
+            ]
+        )
+    }
 }
