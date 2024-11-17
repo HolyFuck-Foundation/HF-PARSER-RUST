@@ -37,6 +37,9 @@ pub enum Token {
     StackPush,
     StackPop,
 
+    CondStart,
+    CondEnd,
+
     String(String),
 
     AsmStart,
@@ -115,6 +118,9 @@ fn consume<I: Iterator<Item = char>>(
             '.' => Either::A(vec![Token::StackPush]),
             ',' => Either::A(vec![Token::StackPop]),
 
+            '[' => Either::A(vec![Token::CondStart]),
+            ']' => Either::A(vec![Token::CondEnd]),
+
             ':' => Either::A(vec![
                 Token::FuncDecl,
                 Token::String(
@@ -186,6 +192,7 @@ pub enum SyntaxNode {
     Function(String, Vec<AstNode>),
     FuncCall(String),
     Asm(String),
+    Condition(Vec<AstNode>),
 }
 
 #[derive(Debug, PartialEq)]
@@ -303,6 +310,16 @@ fn build_ast_impl<I: Iterator<Item = SourceToken>>(
                     location,
                 });
             }
+            SourceToken {
+                token: Token::CondStart,
+                location,
+            } => {
+                let body = consume_condition(tokens, location)?;
+                result.push(AstNode {
+                    node: SyntaxNode::Condition(body),
+                    location,
+                });
+            }
             SourceToken { token, location } => {
                 return Err(SyntaxError {
                     location,
@@ -329,21 +346,51 @@ fn consume_function<I: Iterator<Item = SourceToken>>(
     let name = consume_match_string(tokens, location)?;
     let _ = consume_match_token(tokens, Token::ScopeStart, location)?;
     let mut body = Vec::new();
-    while let Some(token) = tokens.peek() {
+    if let Some(token) = tokens.peek() {
         match token {
             SourceToken {
                 token: Token::ScopeEnd,
                 ..
             } => {
                 let _ = tokens.next();
-                break;
             }
             // this will also fail if the scope end isnt found,
             // so the above check only needs to exist for the empty body case
             _ => body.append(&mut build_ast_impl(tokens, Some(Token::ScopeEnd))?),
         }
+    } else {
+        return Err(SyntaxError {
+            location,
+            error: InternalSyntaxError::UnexpectedEof,
+        });
     }
     Ok((name, body))
+}
+
+fn consume_condition<I: Iterator<Item = SourceToken>>(
+    tokens: &mut Peekable<I>,
+    location: (usize, usize),
+) -> Result<Vec<AstNode>, SyntaxError> {
+    let mut body = Vec::new();
+    if let Some(token) = tokens.peek() {
+        match token {
+            SourceToken {
+                token: Token::CondEnd,
+                ..
+            } => {
+                let _ = tokens.next();
+            }
+            // this will also fail if the cond end isnt found,
+            // so the above check only needs to exist for the empty cond body case
+            _ => body.append(&mut build_ast_impl(tokens, Some(Token::CondEnd))?),
+        }
+    } else {
+        return Err(SyntaxError {
+            location,
+            error: InternalSyntaxError::UnexpectedEof,
+        });
+    }
+    Ok(body)
 }
 
 fn consume_match_string<I: Iterator<Item = SourceToken>>(
@@ -758,6 +805,61 @@ mod tests {
     }
 
     #[test]
+    fn tokenize_simple_function_formatted() {
+        const INPUT: &str = ":test{\n    ,\n    +++[-]\n}";
+        let result = tokenize(INPUT).unwrap();
+        assert_eq!(
+            result,
+            vec![
+                SourceToken {
+                    token: Token::FuncDecl,
+                    location: (0, 0)
+                },
+                SourceToken {
+                    token: Token::String(String::from("test")),
+                    location: (0, 1)
+                },
+                SourceToken {
+                    token: Token::ScopeStart,
+                    location: (0, 5)
+                },
+                SourceToken {
+                    token: Token::StackPop,
+                    location: (1, 4)
+                },
+                SourceToken {
+                    token: Token::Add,
+                    location: (2, 4)
+                },
+                SourceToken {
+                    token: Token::Add,
+                    location: (2, 5)
+                },
+                SourceToken {
+                    token: Token::Add,
+                    location: (2, 6)
+                },
+                SourceToken {
+                    token: Token::CondStart,
+                    location: (2, 7)
+                },
+                SourceToken {
+                    token: Token::Subtract,
+                    location: (2, 8)
+                },
+                SourceToken {
+                    token: Token::CondEnd,
+                    location: (2, 9)
+                },
+                SourceToken {
+                    token: Token::ScopeEnd,
+                    location: (3, 0)
+                }
+            ]
+        )
+    }
+
+    #[test]
     fn ast_simple_function() {
         let input = vec![
             SourceToken {
@@ -1122,6 +1224,35 @@ mod tests {
                     location: (0, 13),
                 },
             ]
+        );
+    }
+
+    #[test]
+    fn ast_condition_block() {
+        let input = vec![
+            SourceToken {
+                token: Token::CondStart,
+                location: (0, 0),
+            },
+            SourceToken {
+                token: Token::Add,
+                location: (0, 1),
+            },
+            SourceToken {
+                token: Token::CondEnd,
+                location: (0, 2),
+            },
+        ];
+        let result = build_ast(input).unwrap();
+        assert_eq!(
+            result,
+            vec![AstNode {
+                node: SyntaxNode::Condition(vec![AstNode {
+                    node: SyntaxNode::Add,
+                    location: (0, 1),
+                }]),
+                location: (0, 0),
+            }]
         );
     }
 }
