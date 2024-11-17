@@ -10,13 +10,13 @@ use core::iter::Peekable;
 
 use thiserror_no_std::Error;
 
-#[derive(Debug, Error)]
+#[derive(Debug, Error, PartialEq)]
 pub enum InternalTokenizerError {
     #[error("unexpected eof")]
     UnexpectedEof,
 }
 
-#[derive(Debug, Error)]
+#[derive(Debug, Error, PartialEq)]
 pub struct TokenizerError {
     pub error: InternalTokenizerError,
     pub location: (usize, usize),
@@ -499,6 +499,44 @@ mod tests {
                     location: (0, 21)
                 }
             ]
+        )
+    }
+
+    #[test]
+    fn tokenizer_error_eof() {
+        const INPUT: &str = ":test";
+        let result = tokenize(INPUT);
+        assert_eq!(
+            result,
+            Err(TokenizerError {
+                error: InternalTokenizerError::UnexpectedEof,
+                location: (0, 0) // the location of error is before the token which failed to parse
+            })
+        )
+    }
+    #[test]
+    fn tokenizer_error_eof_func_call() {
+        const INPUT: &str = "@test";
+        let result = tokenize(INPUT);
+        assert_eq!(
+            result,
+            Err(TokenizerError {
+                error: InternalTokenizerError::UnexpectedEof,
+                location: (0, 0) // the location of error is before the token which failed to parse
+            })
+        )
+    }
+
+    #[test]
+    fn tokenizer_error_eof_asm() {
+        const INPUT: &str = "$mov eax, 0";
+        let result = tokenize(INPUT);
+        assert_eq!(
+            result,
+            Err(TokenizerError {
+                error: InternalTokenizerError::UnexpectedEof,
+                location: (0, 0) // the location of error is before the token which failed to parse
+            })
         )
     }
 }
