@@ -8,6 +8,20 @@ use alloc::vec::Vec;
 
 use core::iter::Peekable;
 
+use thiserror_no_std::Error;
+
+#[derive(Debug, Error)]
+pub enum InternalTokenizerError {
+    #[error("unexpected eof")]
+    UnexpectedEof,
+}
+
+#[derive(Debug, Error)]
+pub struct TokenizerError {
+    pub error: InternalTokenizerError,
+    pub location: (usize, usize),
+}
+
 #[derive(Debug, PartialEq)]
 pub struct SourceToken {
     pub token: Token,
@@ -59,23 +73,32 @@ enum Either<A, B> {
     B(B),
 }
 
-fn consume_string_until<I: Iterator<Item = char>>(i: &mut Peekable<I>, stop: char) -> String {
+fn consume_string_until<I: Iterator<Item = char>>(
+    i: &mut Peekable<I>,
+    stop: char,
+) -> Result<String, InternalTokenizerError> {
     let mut string = String::new();
-    while let Some(c) = i.peek() {
-        match *c {
-            c if c == stop => {
-                break;
+    loop {
+        if let Some(c) = i.peek() {
+            match *c {
+                c if c == stop => {
+                    break;
+                }
+                c => {
+                    string.push(c);
+                    let _ = i.next(); // Consume the character
+                }
             }
-            c => {
-                string.push(c);
-                let _ = i.next(); // Consume the character
-            }
+        } else {
+            return Err(InternalTokenizerError::UnexpectedEof);
         }
     }
-    string
+    Ok(string)
 }
 
-fn consume<I: Iterator<Item = char>>(mut i: Peekable<I>) -> Vec<SourceToken> {
+fn consume<I: Iterator<Item = char>>(
+    mut i: Peekable<I>,
+) -> Result<Vec<SourceToken>, TokenizerError> {
     let mut result = Vec::new();
     let mut location = (0, 0);
 
@@ -90,7 +113,10 @@ fn consume<I: Iterator<Item = char>>(mut i: Peekable<I>) -> Vec<SourceToken> {
 
             ':' => Either::A(vec![
                 Token::FuncDecl,
-                Token::String(consume_string_until(&mut i, '{')),
+                Token::String(
+                    consume_string_until(&mut i, '{')
+                        .map_err(|e| TokenizerError { error: e, location })?,
+                ),
             ]),
 
             '{' => Either::A(vec![Token::ScopeStart]),
@@ -120,10 +146,10 @@ fn consume<I: Iterator<Item = char>>(mut i: Peekable<I>) -> Vec<SourceToken> {
         }
     }
 
-    result
+    Ok(result)
 }
 
-pub fn tokenize(code: &str) -> Vec<SourceToken> {
+pub fn tokenize(code: &str) -> Result<Vec<SourceToken>, TokenizerError> {
     consume(code.chars().into_iter().peekable())
 }
 
@@ -134,7 +160,7 @@ mod tests {
     #[test]
     fn basic_hf() {
         const INPUT: &str = "++--<>.,";
-        let result = tokenize(INPUT);
+        let result = tokenize(INPUT).unwrap();
         assert_eq!(
             result,
             vec![
@@ -177,7 +203,7 @@ mod tests {
     #[test]
     fn tokenize_func_decl() {
         const INPUT: &str = ":test{";
-        let result = tokenize(INPUT);
+        let result = tokenize(INPUT).unwrap();
         assert_eq!(
             result,
             vec![
@@ -200,7 +226,7 @@ mod tests {
     #[test]
     fn tokenize_special() {
         const INPUT: &str = "+\n+ <  >";
-        let result = tokenize(INPUT);
+        let result = tokenize(INPUT).unwrap();
         assert_eq!(
             result,
             vec![
@@ -227,7 +253,7 @@ mod tests {
     #[test]
     fn tokenize_func_decl_newline() {
         const INPUT: &str = ":hi\n   t+st{";
-        let result = tokenize(INPUT);
+        let result = tokenize(INPUT).unwrap();
         assert_eq!(
             result,
             vec![
