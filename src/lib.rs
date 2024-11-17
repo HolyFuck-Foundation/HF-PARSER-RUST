@@ -6,6 +6,7 @@ extern crate alloc;
 use alloc::string::String;
 use alloc::vec::Vec;
 
+use core::fmt::{Display, Formatter};
 use core::iter::Peekable;
 
 use thiserror_no_std::Error;
@@ -181,7 +182,7 @@ pub fn tokenize(code: &str) -> Result<Vec<SourceToken>, TokenizerError> {
     consume(code.chars().into_iter().peekable())
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub enum SyntaxNode {
     Add,
     Subtract,
@@ -195,10 +196,28 @@ pub enum SyntaxNode {
     Condition(Vec<AstNode>),
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(PartialEq, Clone)]
 pub struct AstNode {
     node: SyntaxNode,
     location: (usize, usize),
+}
+
+impl core::fmt::Debug for AstNode {
+    fn fmt(&self, f: &mut Formatter<'_>) -> core::fmt::Result {
+        if f.alternate() {
+            write!(
+                f,
+                "{:#?} \x1b[90m({}:{})\x1b[0m",
+                self.node, self.location.0, self.location.1
+            )
+        } else {
+            write!(
+                f,
+                "{:?} \x1b[90m({}:{})\x1b[0m",
+                self.node, self.location.0, self.location.1
+            )
+        }
+    }
 }
 
 #[derive(Debug, PartialEq, Error)]
