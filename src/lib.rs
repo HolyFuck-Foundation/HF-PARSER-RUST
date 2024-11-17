@@ -208,13 +208,17 @@ impl core::fmt::Debug for AstNode {
             write!(
                 f,
                 "{:#?} \x1b[90m({}:{})\x1b[0m",
-                self.node, self.location.0, self.location.1
+                self.node,
+                self.location.0 + 1,
+                self.location.1 + 1
             )
         } else {
             write!(
                 f,
                 "{:?} \x1b[90m({}:{})\x1b[0m",
-                self.node, self.location.0, self.location.1
+                self.node,
+                self.location.0 + 1,
+                self.location.1 + 1
             )
         }
     }
