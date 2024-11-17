@@ -212,11 +212,11 @@ pub struct SyntaxError {
     error: InternalSyntaxError,
 }
 
-pub fn build_syntax_tree(tokens: Vec<SourceToken>) -> Result<Vec<AstNode>, SyntaxError> {
-    build_ast(&mut tokens.into_iter().peekable(), None)
+pub fn build_ast(tokens: Vec<SourceToken>) -> Result<Vec<AstNode>, SyntaxError> {
+    build_ast_impl(&mut tokens.into_iter().peekable(), None)
 }
 
-fn build_ast<I: Iterator<Item = SourceToken>>(
+fn build_ast_impl<I: Iterator<Item = SourceToken>>(
     tokens: &mut Peekable<I>,
     stop_at: Option<Token>,
 ) -> Result<Vec<AstNode>, SyntaxError> {
@@ -340,7 +340,7 @@ fn consume_function<I: Iterator<Item = SourceToken>>(
             }
             // this will also fail if the scope end isnt found,
             // so the above check only needs to exist for the empty body case
-            _ => body.append(&mut build_ast(tokens, Some(Token::ScopeEnd))?),
+            _ => body.append(&mut build_ast_impl(tokens, Some(Token::ScopeEnd))?),
         }
     }
     Ok((name, body))
@@ -785,7 +785,7 @@ mod tests {
                 location: (0, 8),
             },
         ];
-        let result = build_syntax_tree(input).unwrap();
+        let result = build_ast(input).unwrap();
         assert_eq!(
             result,
             vec![AstNode {
@@ -801,6 +801,212 @@ mod tests {
                             location: (0, 7),
                         },
                     ]
+                ),
+                location: (0, 0),
+            }]
+        );
+    }
+
+    #[test]
+    fn ast_function_with_missing_scope_end() {
+        let input = vec![
+            SourceToken {
+                token: Token::FuncDecl,
+                location: (0, 0),
+            },
+            SourceToken {
+                token: Token::String(String::from("test")),
+                location: (0, 1),
+            },
+            SourceToken {
+                token: Token::ScopeStart,
+                location: (0, 5),
+            },
+            SourceToken {
+                token: Token::StackPop,
+                location: (0, 6),
+            },
+        ];
+        let result = build_ast(input);
+        assert_eq!(
+            result,
+            Err(SyntaxError {
+                error: InternalSyntaxError::Expected(Token::ScopeEnd),
+                location: (0, 0),
+            })
+        );
+    }
+
+    #[test]
+    fn ast_function_with_missing_scope_start() {
+        let input = vec![
+            SourceToken {
+                token: Token::FuncDecl,
+                location: (0, 0),
+            },
+            SourceToken {
+                token: Token::String(String::from("test")),
+                location: (0, 1),
+            },
+            SourceToken {
+                token: Token::StackPop,
+                location: (0, 6),
+            },
+            SourceToken {
+                token: Token::ScopeEnd,
+                location: (0, 8),
+            },
+        ];
+        let result = build_ast(input);
+        assert_eq!(
+            result,
+            Err(SyntaxError {
+                error: InternalSyntaxError::UnexpectedTokenExpected(
+                    Token::StackPop,
+                    Token::ScopeStart
+                ),
+                location: (0, 0),
+            })
+        );
+    }
+
+    #[test]
+    fn ast_function_with_missing_func_name() {
+        let input = vec![
+            SourceToken {
+                token: Token::FuncDecl,
+                location: (0, 0),
+            },
+            SourceToken {
+                token: Token::ScopeStart,
+                location: (0, 5),
+            },
+            SourceToken {
+                token: Token::StackPop,
+                location: (0, 6),
+            },
+            SourceToken {
+                token: Token::ScopeEnd,
+                location: (0, 8),
+            },
+        ];
+        let result = build_ast(input);
+        assert_eq!(
+            result,
+            Err(SyntaxError {
+                error: InternalSyntaxError::UnexpectedTokenExpected(
+                    Token::ScopeStart,
+                    Token::String(String::new())
+                ),
+                location: (0, 0),
+            })
+        );
+    }
+
+    #[test]
+    fn ast_function_with_missing_func_decl() {
+        let input = vec![
+            SourceToken {
+                token: Token::ScopeStart,
+                location: (0, 5),
+            },
+            SourceToken {
+                token: Token::String(String::from("test")),
+                location: (0, 1),
+            },
+            SourceToken {
+                token: Token::StackPop,
+                location: (0, 6),
+            },
+            SourceToken {
+                token: Token::ScopeEnd,
+                location: (0, 8),
+            },
+        ];
+        let result = build_ast(input);
+        assert_eq!(
+            result,
+            Err(SyntaxError {
+                error: InternalSyntaxError::UnexpectedToken(Token::ScopeStart),
+                location: (0, 5),
+            })
+        );
+    }
+
+    #[test]
+    fn ast_no_function() {
+        let input = vec![
+            SourceToken {
+                token: Token::StackPop,
+                location: (0, 0),
+            },
+            SourceToken {
+                token: Token::StackPush,
+                location: (0, 1),
+            },
+        ];
+        let result = build_ast(input).unwrap();
+        assert_eq!(
+            result,
+            vec![
+                AstNode {
+                    node: SyntaxNode::StackPop,
+                    location: (0, 0),
+                },
+                AstNode {
+                    node: SyntaxNode::StackPush,
+                    location: (0, 1),
+                },
+            ]
+        );
+    }
+
+    #[test]
+    fn ast_function_within_function() {
+        let input = vec![
+            SourceToken {
+                token: Token::FuncDecl,
+                location: (0, 0),
+            },
+            SourceToken {
+                token: Token::String(String::from("test")),
+                location: (0, 1),
+            },
+            SourceToken {
+                token: Token::ScopeStart,
+                location: (0, 5),
+            },
+            SourceToken {
+                token: Token::FuncDecl,
+                location: (0, 10),
+            },
+            SourceToken {
+                token: Token::String(String::from("test2")),
+                location: (0, 11),
+            },
+            SourceToken {
+                token: Token::ScopeStart,
+                location: (0, 16),
+            },
+            SourceToken {
+                token: Token::ScopeEnd,
+                location: (0, 19),
+            },
+            SourceToken {
+                token: Token::ScopeEnd,
+                location: (0, 20),
+            },
+        ];
+        let result = build_ast(input).unwrap();
+        assert_eq!(
+            result,
+            vec![AstNode {
+                node: SyntaxNode::Function(
+                    String::from("test"),
+                    vec![AstNode {
+                        node: SyntaxNode::Function(String::from("test2"), vec![]),
+                        location: (0, 10),
+                    }],
                 ),
                 location: (0, 0),
             }]
