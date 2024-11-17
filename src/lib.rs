@@ -1012,4 +1012,116 @@ mod tests {
             }]
         );
     }
+
+    #[test]
+    fn ast_test_all_primitive_types() {
+        let input = vec![
+            SourceToken {
+                token: Token::Add,
+                location: (0, 0),
+            },
+            SourceToken {
+                token: Token::Subtract,
+                location: (0, 1),
+            },
+            SourceToken {
+                token: Token::MoveRight,
+                location: (0, 2),
+            },
+            SourceToken {
+                token: Token::MoveLeft,
+                location: (0, 3),
+            },
+            SourceToken {
+                token: Token::StackPush,
+                location: (0, 4),
+            },
+            SourceToken {
+                token: Token::StackPop,
+                location: (0, 5),
+            },
+            SourceToken {
+                token: Token::FuncDecl,
+                location: (0, 6),
+            },
+            SourceToken {
+                token: Token::String(String::from("func_name")),
+                location: (0, 7),
+            },
+            SourceToken {
+                token: Token::ScopeStart,
+                location: (0, 8),
+            },
+            SourceToken {
+                token: Token::ScopeEnd,
+                location: (0, 9),
+            },
+            SourceToken {
+                token: Token::FuncCall,
+                location: (0, 10),
+            },
+            SourceToken {
+                token: Token::String(String::from("func_call")),
+                location: (0, 11),
+            },
+            SourceToken {
+                token: Token::Jawns,
+                location: (0, 12),
+            },
+            SourceToken {
+                token: Token::AsmStart,
+                location: (0, 13),
+            },
+            SourceToken {
+                token: Token::String(String::from("asm_code")),
+                location: (0, 14),
+            },
+            SourceToken {
+                token: Token::Jawns,
+                location: (0, 15),
+            },
+        ];
+        let result = build_ast(input).unwrap();
+        assert_eq!(
+            result,
+            vec![
+                AstNode {
+                    node: SyntaxNode::Add,
+                    location: (0, 0),
+                },
+                AstNode {
+                    node: SyntaxNode::Subtract,
+                    location: (0, 1),
+                },
+                AstNode {
+                    node: SyntaxNode::MoveRight,
+                    location: (0, 2),
+                },
+                AstNode {
+                    node: SyntaxNode::MoveLeft,
+                    location: (0, 3),
+                },
+                AstNode {
+                    node: SyntaxNode::StackPush,
+                    location: (0, 4),
+                },
+                AstNode {
+                    node: SyntaxNode::StackPop,
+                    location: (0, 5),
+                },
+                AstNode {
+                    node: SyntaxNode::Function(String::from("func_name"), vec![]),
+                    location: (0, 6),
+                },
+                AstNode {
+                    node: SyntaxNode::FuncCall(String::from("func_call")),
+                    location: (0, 10),
+                },
+                AstNode {
+                    node: SyntaxNode::Asm(String::from("asm_code")),
+                    location: (0, 13),
+                },
+            ]
+        );
+    }
 }
