@@ -33,10 +33,23 @@ pub enum Token {
 }
 
 impl Token {
-    fn token_length(&self) -> usize {
+    fn token_offset(&self) -> (usize, usize) {
         match self {
-            Self::String(s) => s.len(),
-            _ => 1,
+            Self::String(s) => {
+                let mut offset = (0, 0);
+
+                for c in s.chars() {
+                    if c == '\n' {
+                        offset.0 += 1;
+                        offset.1 = 0;
+                    } else {
+                        offset.1 += 1;
+                    }
+                }
+
+                offset
+            }
+            _ => (0, 1),
         }
     }
 }
@@ -87,9 +100,14 @@ fn consume<I: Iterator<Item = char>>(mut i: Peekable<I>) -> Vec<SourceToken> {
         match either {
             Either::A(tokens) => {
                 for token in tokens {
-                    let token_length = token.token_length();
+                    let token_offset = token.token_offset();
                     result.push(SourceToken { token, location });
-                    location.1 += token_length;
+                    // This is for newlines in identifiers
+                    if token_offset.0 > 0 {
+                        location.0 += token_offset.0;
+                        location.1 = 0;
+                    }
+                    location.1 += token_offset.1;
                 }
             }
             Either::B(c) => match c {
@@ -175,6 +193,56 @@ mod tests {
                     token: Token::ScopeStart,
                     location: (0, 5)
                 }
+            ]
+        )
+    }
+
+    #[test]
+    fn tokenize_special() {
+        const INPUT: &str = "+\n+ <  >";
+        let result = tokenize(INPUT);
+        assert_eq!(
+            result,
+            vec![
+                SourceToken {
+                    token: Token::Add,
+                    location: (0, 0)
+                },
+                SourceToken {
+                    token: Token::Add,
+                    location: (1, 0)
+                },
+                SourceToken {
+                    token: Token::MoveLeft,
+                    location: (1, 2)
+                },
+                SourceToken {
+                    token: Token::MoveRight,
+                    location: (1, 5)
+                },
+            ]
+        )
+    }
+
+    #[test]
+    fn tokenize_func_decl_newline() {
+        const INPUT: &str = ":hi\n   t+st{";
+        let result = tokenize(INPUT);
+        assert_eq!(
+            result,
+            vec![
+                SourceToken {
+                    token: Token::FuncDecl,
+                    location: (0, 0)
+                },
+                SourceToken {
+                    token: Token::String(String::from("hi\n   t+st")),
+                    location: (0, 1)
+                },
+                SourceToken {
+                    token: Token::ScopeStart,
+                    location: (1, 7)
+                },
             ]
         )
     }
