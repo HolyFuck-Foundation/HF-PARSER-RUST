@@ -27,7 +27,10 @@ pub struct AstNode {
 
 impl core::fmt::Debug for AstNode {
     fn fmt(&self, f: &mut Formatter<'_>) -> core::fmt::Result {
-        if f.alternate() {
+        if f.alternate()
+            && matches!(self.node, SyntaxNode::Function(_, _))
+            || matches!(self.node, SyntaxNode::Condition(_))
+        {
             write!(
                 f,
                 "{:#?} \x1b[90m({}:{})\x1b[0m",
@@ -61,8 +64,8 @@ pub enum InternalSyntaxError {
 
 #[derive(Debug, PartialEq, Error)]
 pub struct SyntaxError {
-    location: (usize, usize),
-    error: InternalSyntaxError,
+    pub location: (usize, usize),
+    pub error: InternalSyntaxError,
 }
 
 pub fn build_ast(tokens: Vec<SourceToken>) -> Result<Vec<AstNode>, SyntaxError> {
