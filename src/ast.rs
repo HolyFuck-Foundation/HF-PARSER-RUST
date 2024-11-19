@@ -60,14 +60,26 @@ pub enum InternalSyntaxError {
     UnexpectedTokenExpected(Token, Token),
     #[error("expected token: {0:?}")]
     Expected(Token),
-    #[error("invalid number: {0}")]
-    InvalidNumber(String),
+    #[error("invalid number: {0:?}")]
+    InvalidNumber(Token),
 }
 
 #[derive(Debug, PartialEq, Error)]
 pub struct SyntaxError {
     pub location: (usize, usize),
     pub error: InternalSyntaxError,
+}
+
+impl SyntaxError {
+    pub fn span(&self) -> (usize, usize) {
+        match &self.error {
+            InternalSyntaxError::UnexpectedToken(token) => token.token_offset(),
+            InternalSyntaxError::UnexpectedTokenExpected(token, _) => token.token_offset(),
+            InternalSyntaxError::Expected(token) => token.token_offset(),
+            InternalSyntaxError::InvalidNumber(token) => token.token_offset(),
+            _ => (0, 1),
+        }
+    }
 }
 
 pub fn build_ast(tokens: Vec<SourceToken>) -> Result<Vec<AstNode>, SyntaxError> {
@@ -268,10 +280,10 @@ fn consume_match_number<I: Iterator<Item = SourceToken>>(
     location: (usize, usize),
 ) -> Result<usize, SyntaxError> {
     if let Some(token) = tokens.next() {
-        if let Token::String(number_str) = token.token {
+        if let Token::String(number_str) = &token.token {
             let number = number_str.parse().map_err(|_| SyntaxError {
                 location,
-                error: InternalSyntaxError::InvalidNumber(number_str),
+                error: InternalSyntaxError::InvalidNumber(token.token),
             })?;
             Ok(number)
         } else {
@@ -784,7 +796,7 @@ mod tests {
         assert_eq!(
             result,
             Err(SyntaxError {
-                error: InternalSyntaxError::InvalidNumber(String::from("fake")),
+                error: InternalSyntaxError::InvalidNumber(Token::String(String::from("fake"))),
                 location: (0, 0),
             })
         )

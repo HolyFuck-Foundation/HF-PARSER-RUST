@@ -51,7 +51,7 @@ pub enum Token {
 }
 
 impl Token {
-    fn token_offset(&self) -> (usize, usize) {
+    pub fn token_offset(&self) -> (usize, usize) {
         match self {
             Self::String(s) => {
                 let mut offset = (0, 0);
