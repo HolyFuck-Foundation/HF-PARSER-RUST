@@ -39,6 +39,8 @@ pub enum Token {
 
     AsmStart,
 
+    MemAlloc,
+
     FuncDecl,
     FuncCall,
 
@@ -111,6 +113,14 @@ fn consume<I: Iterator<Item = char>>(
             '[' => Either::A(vec![Token::CondStart]),
             ']' => Either::A(vec![Token::CondEnd]),
 
+            '&' => Either::A(vec![
+                Token::MemAlloc,
+                Token::String(
+                    consume_string_until(&mut i, ';')
+                        .map_err(|e| TokenizerError { error: e, location })?,
+                ),
+            ]),
+
             ':' => Either::A(vec![
                 Token::FuncDecl,
                 Token::String(
@@ -170,7 +180,6 @@ fn consume<I: Iterator<Item = char>>(
 pub fn tokenize(code: &str) -> Result<Vec<SourceToken>, TokenizerError> {
     consume(code.chars().into_iter().peekable())
 }
-
 
 #[cfg(test)]
 mod tests {
@@ -587,6 +596,52 @@ mod tests {
                 SourceToken {
                     token: Token::ScopeEnd,
                     location: (3, 0)
+                }
+            ]
+        )
+    }
+
+    #[test]
+    fn tokenize_mem_alloc() {
+        const INPUT: &str = "&10;";
+        let result = tokenize(INPUT).unwrap();
+        assert_eq!(
+            result,
+            vec![
+                SourceToken {
+                    token: Token::MemAlloc,
+                    location: (0, 0)
+                },
+                SourceToken {
+                    token: Token::String(String::from("10")),
+                    location: (0, 1)
+                },
+                SourceToken {
+                    token: Token::Jawns,
+                    location: (0, 3)
+                }
+            ]
+        )
+    }
+
+    #[test]
+    fn tokenize_mem_alloc_empty() {
+        const INPUT: &str = "&;";
+        let result = tokenize(INPUT).unwrap();
+        assert_eq!(
+            result,
+            vec![
+                SourceToken {
+                    token: Token::MemAlloc,
+                    location: (0, 0)
+                },
+                SourceToken {
+                    token: Token::String(String::new()),
+                    location: (0, 1)
+                },
+                SourceToken {
+                    token: Token::Jawns,
+                    location: (0, 1)
                 }
             ]
         )

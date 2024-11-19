@@ -13,6 +13,7 @@ pub enum SyntaxNode {
     MoveLeft,
     StackPush,
     StackPop,
+    MemAlloc(usize),
     Function(String, Vec<AstNode>),
     FuncCall(String),
     Asm(String),
@@ -27,8 +28,7 @@ pub struct AstNode {
 
 impl core::fmt::Debug for AstNode {
     fn fmt(&self, f: &mut Formatter<'_>) -> core::fmt::Result {
-        if f.alternate()
-            && matches!(self.node, SyntaxNode::Function(_, _))
+        if f.alternate() && matches!(self.node, SyntaxNode::Function(_, _))
             || matches!(self.node, SyntaxNode::Condition(_))
         {
             write!(
@@ -60,6 +60,8 @@ pub enum InternalSyntaxError {
     UnexpectedTokenExpected(Token, Token),
     #[error("expected token: {0:?}")]
     Expected(Token),
+    #[error("invalid number: {0}")]
+    InvalidNumber(String),
 }
 
 #[derive(Debug, PartialEq, Error)]
@@ -128,6 +130,16 @@ fn build_ast_impl<I: Iterator<Item = SourceToken>>(
                 location,
             }),
             SourceToken {
+                token: Token::MemAlloc,
+                location,
+            } => {
+                let byte_count = consume_mem_alloc(tokens, location)?;
+                result.push(AstNode {
+                    node: SyntaxNode::MemAlloc(byte_count),
+                    location,
+                });
+            }
+            SourceToken {
                 token: Token::FuncDecl,
                 location,
             } => {
@@ -188,6 +200,15 @@ fn build_ast_impl<I: Iterator<Item = SourceToken>>(
     Ok(result)
 }
 
+fn consume_mem_alloc<I: Iterator<Item = SourceToken>>(
+    tokens: &mut Peekable<I>,
+    location: (usize, usize),
+) -> Result<usize, SyntaxError> {
+    let byte_count = consume_match_number(tokens, location)?;
+    let _ = consume_match_token(tokens, Token::Jawns, location)?;
+    Ok(byte_count)
+}
+
 fn consume_function<I: Iterator<Item = SourceToken>>(
     tokens: &mut Peekable<I>,
     location: (usize, usize),
@@ -240,6 +261,34 @@ fn consume_condition<I: Iterator<Item = SourceToken>>(
         });
     }
     Ok(body)
+}
+
+fn consume_match_number<I: Iterator<Item = SourceToken>>(
+    tokens: &mut Peekable<I>,
+    location: (usize, usize),
+) -> Result<usize, SyntaxError> {
+    if let Some(token) = tokens.next() {
+        if let Token::String(number_str) = token.token {
+            let number = number_str.parse().map_err(|_| SyntaxError {
+                location,
+                error: InternalSyntaxError::InvalidNumber(number_str),
+            })?;
+            Ok(number)
+        } else {
+            Err(SyntaxError {
+                location,
+                error: InternalSyntaxError::UnexpectedTokenExpected(
+                    token.token,
+                    Token::String(String::new()),
+                ),
+            })
+        }
+    } else {
+        Err(SyntaxError {
+            location,
+            error: InternalSyntaxError::Expected(Token::String(String::new())),
+        })
+    }
 }
 
 fn consume_match_string<I: Iterator<Item = SourceToken>>(
@@ -687,5 +736,57 @@ mod tests {
                 location: (0, 0),
             }]
         );
+    }
+
+    #[test]
+    fn ast_mem_alloc() {
+        let input = vec![
+            SourceToken {
+                token: Token::MemAlloc,
+                location: (0, 0),
+            },
+            SourceToken {
+                token: Token::String(String::from("10")),
+                location: (0, 1),
+            },
+            SourceToken {
+                token: Token::Jawns,
+                location: (0, 3),
+            },
+        ];
+        let result = build_ast(input).unwrap();
+        assert_eq!(
+            result,
+            vec![AstNode {
+                node: SyntaxNode::MemAlloc(10),
+                location: (0, 0),
+            }]
+        )
+    }
+
+    #[test]
+    fn ast_mem_alloc_invalid() {
+        let input = vec![
+            SourceToken {
+                token: Token::MemAlloc,
+                location: (0, 0),
+            },
+            SourceToken {
+                token: Token::String(String::from("fake")),
+                location: (0, 1),
+            },
+            SourceToken {
+                token: Token::Jawns,
+                location: (0, 5),
+            },
+        ];
+        let result = build_ast(input);
+        assert_eq!(
+            result,
+            Err(SyntaxError {
+                error: InternalSyntaxError::InvalidNumber(String::from("fake")),
+                location: (0, 0),
+            })
+        )
     }
 }
