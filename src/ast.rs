@@ -16,7 +16,7 @@ pub enum SyntaxNode {
     MemAlloc(usize),
     Function(String, Vec<AstNode>),
     FuncCall(String),
-    Asm(String),
+    ExternalFunctionCall(String),
     Condition(Vec<AstNode>),
 }
 
@@ -179,7 +179,7 @@ fn build_ast_impl<I: Iterator<Item = SourceToken>>(
                 let asm = consume_match_string(tokens, location)?;
                 let _ = consume_match_token(tokens, Token::Jawns, location)?;
                 result.push(AstNode {
-                    node: SyntaxNode::Asm(asm),
+                    node: SyntaxNode::ExternalFunctionCall(asm),
                     location,
                 });
             }
@@ -669,7 +669,7 @@ mod tests {
                 location: (0, 13),
             },
             SourceToken {
-                token: Token::String(String::from("asm_code")),
+                token: Token::String(String::from("external_fn")),
                 location: (0, 14),
             },
             SourceToken {
@@ -714,7 +714,7 @@ mod tests {
                     location: (0, 10),
                 },
                 AstNode {
-                    node: SyntaxNode::Asm(String::from("asm_code")),
+                    node: SyntaxNode::ExternalFunctionCall(String::from("external_fn")),
                     location: (0, 13),
                 },
             ]
